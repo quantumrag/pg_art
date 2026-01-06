@@ -12,6 +12,7 @@
 #include "catalog/index.h"
 #include "miscadmin.h"
 #include "storage/bufmgr.h"
+#include "storage/checksum.h"
 #include "utils/memutils.h"
 
 #include "art.h"
@@ -1217,7 +1218,12 @@ _art_build_callback(Relation index, ItemPointer tid, Datum * values,
 
 	_node_release_list(state);
 
-	if (CurrentMemoryContext->mem_allocated > build_max_memory)
+	/*
+	 * build_max_memory is specified in MB (see GUC_UNIT_MB), while mem_allocated
+	 * is in bytes.
+	 */
+	if (CurrentMemoryContext->mem_allocated >
+		((Size) build_max_memory) * (Size) 1024 * (Size) 1024)
 	{
 		ArtPageEntry * node_last_page = NULL;
 		ArtPageEntry * leaf_last_page = NULL;
@@ -1319,8 +1325,13 @@ artbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 	_art_init_metadata_page(metadata_page);
 	state.build_state->num_allocated_pages++;
 
-	/* Write metadata page*/
+	/* Write metadata page */
 	_art_update_metadata_page(metadata_page, &(state.build_state->metadata));
+	/*
+	 * We bypass the buffer manager here, so we must set the page checksum
+	 * ourselves when data checksums are enabled.
+	 */
+	PageSetChecksumInplace(metadata_page, ART_METADATA_NODE_BLKNO);
 	smgrextend(RelationGetSmgr(index), MAIN_FORKNUM, ART_METADATA_NODE_BLKNO,
 			  (char *) metadata_page, true);
 	pfree(metadata_page);

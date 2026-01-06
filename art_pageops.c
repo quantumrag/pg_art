@@ -15,6 +15,7 @@
 #include "commands/vacuum.h"
 #include "miscadmin.h"
 #include "storage/bufmgr.h"
+#include "storage/checksum.h"
 #include "storage/freespace.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"
@@ -232,6 +233,11 @@ _art_flush_pages(Relation index, dlist_head * pageListHead)
 		}
 		else if (!page_entry->is_copy)
 		{
+			/*
+			 * We bypass the buffer manager here, so we must set the page checksum
+			 * ourselves when data checksums are enabled.
+			 */
+			PageSetChecksumInplace(page_entry->page, page_entry->blk_num);
 			smgrextend(RelationGetSmgr(index), MAIN_FORKNUM, page_entry->blk_num,
 					   (char *) page_entry->page, false);
 			
