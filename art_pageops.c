@@ -20,6 +20,7 @@
 #include "storage/lmgr.h"
 #include "utils/memutils.h"
 #include "utils/hsearch.h"
+#include "storage/checksum.h"
 
 #include "art.h"
 
@@ -148,6 +149,7 @@ _art_get_buffer(Relation index, uint8 flags)
 	page_entry->is_copy = false;
 
 	_art_init_data_page(page_entry->page, flags);
+	page_entry->dirty = true;
 
 	return page_entry;
 }
@@ -232,6 +234,10 @@ _art_flush_pages(Relation index, dlist_head * pageListHead)
 		}
 		else if (!page_entry->is_copy)
 		{
+			/* If data checksums are enabled, compute checksum before raw write */
+			if (DataChecksumsEnabled())
+				PageSetChecksumInplace(page_entry->page, page_entry->blk_num);
+
 			smgrextend(RelationGetSmgr(index), MAIN_FORKNUM, page_entry->blk_num,
 					   (char *) page_entry->page, false);
 			

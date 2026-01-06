@@ -728,6 +728,7 @@ _get_page_with_free_space(ArtState * state, uint8 pageType, Size itemsz)
 
 	opaque = (ArtDataPageOpaque) PageGetSpecialPointer(last_page_entry->page);
 	opaque->right_link = new_page_entry->blk_num;
+	last_page_entry->dirty = true;
 
 	dlist_push_tail(&state->pages, &new_page_entry->node);
 
@@ -1297,6 +1298,7 @@ artbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 	ArtPageEntry * leaf_page_entry;
 	ArtPageEntry * metadata_page_entry;
 	Page metadata_page;
+	Buffer metadata_buffer;
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "cannot initialize non-empty art index \"%s\"",
@@ -1315,15 +1317,21 @@ artbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 
 	_art_init_page_hash(&state.build_state->page_lookup_hash);
 
-	metadata_page = (Page) palloc(BLCKSZ);
-	_art_init_metadata_page(metadata_page);
-	state.build_state->num_allocated_pages++;
+	/* Initialize block 0 (metadata) using the buffer manager so it has a valid
+	 * PostgreSQL page header and participates in WAL/checksums as needed. */
+	metadata_buffer = ReadBufferExtended(index, MAIN_FORKNUM, P_NEW, RBM_NORMAL, NULL);
+	LockBuffer(metadata_buffer, BUFFER_LOCK_EXCLUSIVE);
 
-	/* Write metadata page*/
-	_art_update_metadata_page(metadata_page, &(state.build_state->metadata));
-	smgrextend(RelationGetSmgr(index), MAIN_FORKNUM, ART_METADATA_NODE_BLKNO,
-			  (char *) metadata_page, true);
-	pfree(metadata_page);
+	metadata_page = BufferGetPage(metadata_buffer);
+
+	START_CRIT_SECTION();
+	_art_init_metadata_page(metadata_page);
+	MarkBufferDirty(metadata_buffer);
+	/* WAL for new pages is emitted later via log_newpage_range if required. */
+	END_CRIT_SECTION();
+
+	UnlockReleaseBuffer(metadata_buffer);
+	state.build_state->num_allocated_pages++;
 
 	node_page_entry = _art_new_page(ART_NODE_PAGE);
 	node_page_entry->blk_num = ART_ROOT_NODE_BLKNO;

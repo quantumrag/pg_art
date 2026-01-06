@@ -118,8 +118,8 @@ _art_find_child_equal(ArtNodeHeader * n, uint8 key)
 #ifdef __i386__
 			// Compare the key to all 16 stored keys
 			__m128i cmp;
-			cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
-					_mm_loadu_si128((__m128i*)p.p2->keys));
+			cmp = _mm_cmpeq_epi8(_mm_set1_epi8(key),
+					_mm_loadu_si128((__m128i*)node16->keys));
 			
 			// Use a mask to ignore children that don't exist
 			mask = (1 << n->num_children) - 1;
@@ -138,7 +138,7 @@ _art_find_child_equal(ArtNodeHeader * n, uint8 key)
 			// Compare the key to all 16 stored keys
 			bitfield = 0;
 			for (i = 0; i < 16; ++i) {
-				if (p.p2->keys[i] == c)
+				if (node16->keys[i] == key)
 					bitfield |= (1 << i);
 			}
 
