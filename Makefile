@@ -21,8 +21,14 @@ PG_CONFIG = pg_config
 endif
 
 PGXS := $(shell $(PG_CONFIG) --pgxs)
+# Check if we are on macOS and if we can find the SDK path
+ifeq ($(shell uname), Darwin)
+    SDK_PATH := $(shell xcrun --show-sdk-path 2>/dev/null)
+    ifneq ($(SDK_PATH),)
+        PG_CPPFLAGS += -isysroot $(SDK_PATH)
+    endif
+endif
+
 include $(PGXS)
 
 REGRESS =
-
-all: art.so

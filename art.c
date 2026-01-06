@@ -7,6 +7,7 @@
  */
 
 #include "postgres.h"
+#include <inttypes.h>
 
 #include "access/amapi.h"
 #include "commands/vacuum.h"
