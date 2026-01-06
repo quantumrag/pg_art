@@ -31,4 +31,4 @@ endif
 
 include $(PGXS)
 
-REGRESS =
+REGRESS = art_smoke
